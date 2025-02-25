@@ -10,7 +10,6 @@ class ClipboardManager:
         self.root = root
         self.root.title("Clipboard Manager")
         self.root.geometry("500x400")
-        self.root.attributes("-topmost", True)  # Always on top
         
         self.clipboard_history = []
         self.dragged_item = None
@@ -63,12 +62,14 @@ class ClipboardManager:
             self.dragged_item = self.clipboard_history[selection[0]]
             self.copy_to_selections(self.dragged_item)
             self.status_label.config(text=f"Dragging: {self.dragged_item[:30]}...")
-            self.listbox.config(selectbackground="#4a90d9")
 
     def copy_to_selections(self, text):
         """Copy text to both clipboard and primary selection"""
         try:
+            # Copy to CLIPBOARD (Ctrl+V)
             pyperclip.copy(text)
+            
+            # Copy to PRIMARY (middle-click)
             process = subprocess.Popen(
                 ['xclip', '-selection', 'primary'],
                 stdin=subprocess.PIPE,
@@ -79,36 +80,31 @@ class ClipboardManager:
             self.status_label.config(text=f"Error: {str(e)}")
 
     def on_drag(self, event):
-        """Visual feedback during drag"""
-        pass  # Visual handled in start_drag
+        """Update drag visual feedback"""
+        if self.dragged_item:
+            self.listbox.config(selectbackground="#4a90d9")
 
     def end_drag(self, event):
         if self.dragged_item:
             try:
-                # Get window under mouse and focus it
-                mouse_data = subprocess.run(
-                    ["xdotool", "getmouselocation", "--shell"],
-                    capture_output=True, text=True
-                )
-                window_id = None
-                for line in mouse_data.stdout.splitlines():
-                    if line.startswith("WINDOW="):
-                        window_id = line.split("=")[1]
-                        break
+                # Simulate middle-click paste
+                keyboard = Controller()
                 
-                if window_id:
-                    subprocess.run(["xdotool", "windowfocus", window_id])
-                    time.sleep(0.1)
-                    subprocess.run(["xdotool", "click", "2"])
-                    self.status_label.config(text="Pasted successfully!")
-                else:
-                    self.status_label.config(text="Paste failed: No target window")
+                # Release window focus
+                self.root.wm_attributes("-topmost", False)
+                time.sleep(0.2)
+                
+                # Send middle-click (requires xdotool)
+                subprocess.run(["xdotool", "click", "1"])
+                
+                self.status_label.config(text="Pasted to target application!")
+                self.listbox.config(selectbackground="#a6a6a6")
+                self.dragged_item = None
+                self.root.wm_attributes("-topmost", True)
                 
             except Exception as e:
                 self.status_label.config(text=f"Paste error: {str(e)}")
-            
-            self.listbox.config(selectbackground="#a6a6a6")
-            self.dragged_item = None
+                self.root.wm_attributes("-topmost", True)
 
     def check_clipboard(self):
         try:
@@ -129,18 +125,21 @@ class ClipboardManager:
             self.listbox.insert(tk.END, display_text)
 
     def full_reset(self):
+        """Reset both history and current clipboard"""
         self.clipboard_history = []
-        pyperclip.copy('')
+        pyperclip.copy('')  # Clear current clipboard
         self.last_clipboard_content = ""
         self.update_listbox()
-        self.status_label.config(text="Full reset complete")
+        self.status_label.config(text="Full reset complete: History and clipboard cleared")
 
     def clear_history(self):
+        """Clear just the history"""
         self.clipboard_history = []
         self.update_listbox()
         self.status_label.config(text="History cleared")
 
     def exit_app(self):
+        """Close the application"""
         self.root.destroy()
 
 if __name__ == "__main__":
